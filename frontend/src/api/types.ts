@@ -28,12 +28,41 @@ export type CreateShowResponse = never;
 // This implies the spec thinks it returns nothing or unknown.
 // I'll define a manual `Show` interface.
 
+// Enum Mirrors
+export const SeatType = {
+    REGULAR: 'REGULAR',
+    PREMIUM: 'PREMIUM',
+    VIP: 'VIP'
+} as const;
+export type SeatType = typeof SeatType[keyof typeof SeatType];
+
+export const SeatStatus = {
+    AVAILABLE: 'AVAILABLE',
+    BOOKED: 'BOOKED',
+    LOCKED: 'LOCKED'
+} as const;
+export type SeatStatus = typeof SeatStatus[keyof typeof SeatStatus];
+
+export interface Seat {
+    id: number;
+    show_id: number;
+    row: string;
+    number: number;
+    type: SeatType;
+    status: SeatStatus;
+    price: number;
+    booking_id?: number | null;
+}
+
 export interface Show {
     id: number;
     title: string;
+    description?: string;
     start_time: string;
     total_seats: number;
-    available_seats?: number; // mentioned in requirements "compute from backend ... or show seats grid"
+    reserved_seats?: number;
+    confirmed_seats?: number;
+    seats?: Seat[];
 }
 
 export type ShowListResponse = Show[]; // Helper

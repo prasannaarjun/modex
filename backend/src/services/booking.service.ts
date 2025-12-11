@@ -8,9 +8,9 @@ export class BookingService {
         this.repo = new BookingRepository();
     }
 
-    async createBooking(showId: number, userId: number) {
+    async createBooking(showId: number, userId: number, seatIds: number[]) {
         // 1. Create booking in DB (atomic check logic in repo)
-        const booking = await this.repo.createBooking(showId, userId);
+        const booking = await this.repo.createBooking(showId, userId, seatIds);
 
         // 2. Schedule expiry job
         // Calculate delay: expires_at - now. Ideally passed from DB or fixed 2 min.
@@ -37,5 +37,9 @@ export class BookingService {
 
     async getBooking(id: number) {
         return this.repo.findById(id);
+    }
+
+    async getBookingsByUser(userId: number) {
+        return this.repo.findByUserId(userId);
     }
 }

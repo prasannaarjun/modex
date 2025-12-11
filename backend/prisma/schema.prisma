@@ -56,6 +56,7 @@ model Show {
 
   inventory   ShowInventory?
   bookings    Booking[]
+  seats       Seat[]
 
   @@map("shows")
 }
@@ -81,7 +82,37 @@ model Booking {
 
   show       Show          @relation(fields: [show_id], references: [id])
   user       User?         @relation(fields: [user_id], references: [id])
+  seats      Seat[]
 
   @@index([status, expires_at])
   @@map("bookings")
+}
+
+enum SeatType {
+  REGULAR
+  PREMIUM
+  VIP
+}
+
+enum SeatStatus {
+  AVAILABLE
+  BOOKED
+  LOCKED
+}
+
+model Seat {
+  id         Int        @id @default(autoincrement())
+  show_id    Int
+  row        String
+  number     Int
+  type       SeatType
+  status     SeatStatus @default(AVAILABLE)
+  price      Int
+  booking_id Int?
+
+  show    Show     @relation(fields: [show_id], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [booking_id], references: [id])
+
+  @@index([show_id])
+  @@map("seats")
 }

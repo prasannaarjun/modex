@@ -7,6 +7,7 @@ export interface Show {
     total_seats: number; // Added to match repository return
     reserved_seats: number;
     confirmed_seats: number;
+    seats?: Seat[];
 }
 
 export interface ShowInventory {
@@ -14,6 +15,30 @@ export interface ShowInventory {
     total_seats: number;
     reserved_seats: number;
     confirmed_seats: number;
+}
+
+
+export enum SeatType {
+    REGULAR = 'REGULAR',
+    PREMIUM = 'PREMIUM',
+    VIP = 'VIP'
+}
+
+export enum SeatStatus {
+    AVAILABLE = 'AVAILABLE',
+    BOOKED = 'BOOKED',
+    LOCKED = 'LOCKED'
+}
+
+export interface Seat {
+    id: number;
+    show_id: number;
+    row: string;
+    number: number;
+    type: SeatType;
+    status: SeatStatus;
+    price: number;
+    booking_id?: number | null;
 }
 
 export enum BookingStatus {
@@ -37,6 +62,9 @@ export interface CreateShowDto {
     description?: string;
     start_time: string;
     total_seats: number;
+    price1: number; // Front/Tier 1 price
+    price2: number; // Middle/Tier 2 price
+    price3: number; // Back/Tier 3 price
 }
 
 export interface CreateBookingDto {

@@ -4,27 +4,30 @@ import { Booking, BookingStatus } from '../types';
 type TransactionClient = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 export class BookingRepository {
-  async createBooking(showId: number, userId: number): Promise<Booking> {
+  async createBooking(showId: number, userId: number, seatIds: number[]): Promise<Booking> {
     return prisma.$transaction(async (tx: TransactionClient) => {
-      // 1. Lock Inventory Row
-      const inventory = await tx.$queryRaw`
-                SELECT * FROM show_inventory 
-                WHERE show_id = ${showId} 
-                FOR UPDATE
-            ` as any[];
+      // 1. Validate and Lock Seats
+      // sorting to avoid deadlocks
+      const sortedIds = [...seatIds].sort((a, b) => a - b);
 
-      if (!inventory || inventory.length === 0) {
-        throw new Error('Show not found');
+      const seats = await tx.seat.findMany({
+        where: {
+          id: { in: sortedIds },
+          show_id: showId
+        }
+      });
+
+      if (seats.length !== seatIds.length) {
+        throw new Error('Some seats not found');
       }
 
-      const inv = inventory[0];
-      const available = inv.total_seats - (inv.reserved_seats + inv.confirmed_seats);
-
-      if (available <= 0) {
-        throw new Error('No seats available');
+      for (const seat of seats) {
+        if (seat.status !== 'AVAILABLE' || seat.booking_id) {
+          throw new Error(`Seat ${seat.id} is not available`);
+        }
       }
 
-      // 2. Initial Booking
+      // 2. Create Booking
       const booking = await tx.booking.create({
         data: {
           show_id: showId,
@@ -34,11 +37,20 @@ export class BookingRepository {
         }
       });
 
-      // 3. Update Inventory
+      // 3. Update Seats
+      await tx.seat.updateMany({
+        where: { id: { in: sortedIds } },
+        data: {
+          booking_id: booking.id,
+          status: 'LOCKED'
+        }
+      });
+
+      // 4. Update Inventory Stats (Legacy support + stats)
       await tx.showInventory.update({
         where: { show_id: showId },
         data: {
-          reserved_seats: { increment: 1 }
+          reserved_seats: { increment: seatIds.length }
         }
       });
 
@@ -56,7 +68,8 @@ export class BookingRepository {
   async confirmBooking(bookingId: number): Promise<Booking> {
     return prisma.$transaction(async (tx: TransactionClient) => {
       const booking = await tx.booking.findUnique({
-        where: { id: bookingId }
+        where: { id: bookingId },
+        include: { seats: true }
       });
 
       if (!booking) throw new Error('Booking not found');
@@ -71,11 +84,19 @@ export class BookingRepository {
         data: { status: 'CONFIRMED' }
       });
 
+      // Update Seats to BOOKED
+      await tx.seat.updateMany({
+        where: { booking_id: bookingId },
+        data: { status: 'BOOKED' }
+      });
+
+      // Update Stats
+      const seatCount = booking.seats.length;
       await tx.showInventory.update({
         where: { show_id: booking.show_id },
         data: {
-          reserved_seats: { decrement: 1 },
-          confirmed_seats: { increment: 1 }
+          reserved_seats: { decrement: seatCount },
+          confirmed_seats: { increment: seatCount }
         }
       });
 
@@ -93,7 +114,8 @@ export class BookingRepository {
   async expireBooking(bookingId: number): Promise<void> {
     await prisma.$transaction(async (tx: TransactionClient) => {
       const booking = await tx.booking.findUnique({
-        where: { id: bookingId }
+        where: { id: bookingId },
+        include: { seats: true }
       });
 
       if (!booking || booking.status !== 'PENDING') return;
@@ -103,10 +125,21 @@ export class BookingRepository {
         data: { status: 'EXPIRED' }
       });
 
+      // Release Seats
+      await tx.seat.updateMany({
+        where: { booking_id: bookingId },
+        data: {
+          status: 'AVAILABLE',
+          booking_id: null
+        }
+      });
+
+      // Update Stats
+      const seatCount = booking.seats.length;
       await tx.showInventory.update({
         where: { show_id: booking.show_id },
         data: {
-          reserved_seats: { decrement: 1 }
+          reserved_seats: { decrement: seatCount }
         }
       });
     });
@@ -127,5 +160,27 @@ export class BookingRepository {
       expires_at: booking.expires_at as Date,
       created_at: booking.created_at
     };
+  }
+
+  async findByUserId(userId: number): Promise<Booking[]> {
+    const bookings = await prisma.booking.findMany({
+      where: { user_id: userId },
+      include: { show: true },
+      orderBy: { created_at: 'desc' }
+    });
+
+    return bookings.map((b: any) => ({
+      id: b.id,
+      show_id: b.show_id,
+      user_id: b.user_id,
+      status: b.status as BookingStatus,
+      expires_at: b.expires_at,
+      created_at: b.created_at,
+      show: b.show ? {
+        id: b.show.id,
+        title: b.show.title,
+        start_time: b.show.start_time
+      } : undefined
+    }));
   }
 }

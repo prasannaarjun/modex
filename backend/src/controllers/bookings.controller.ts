@@ -8,6 +8,17 @@ import { authenticateToken } from '../middlewares/auth.middleware';
 
 // ... (imports)
 
+// GET /api/bookings (List current user's bookings)
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        const bookings = await bookingService.getBookingsByUser(req.user!.userId);
+        res.json(bookings);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // GET /api/bookings/:id
 router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
     try {

@@ -10,6 +10,7 @@ import { Auth } from './pages/Auth.tsx';
 import { Admin } from './pages/Admin.tsx';
 import { Booking } from './pages/Booking.tsx';
 import { BookingDetails } from './pages/BookingDetails.tsx';
+import { MyBookings } from './pages/MyBookings.tsx';
 
 const PrivateRoute = ({ children, adminOnly = false }: { children: ReactNode, adminOnly?: boolean }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -43,6 +44,12 @@ const AppRoutes = () => {
       <Route path="/bookings/:id" element={
         <PrivateRoute>
           <BookingDetails />
+        </PrivateRoute>
+      } />
+
+      <Route path="/my-bookings" element={
+        <PrivateRoute>
+          <MyBookings />
         </PrivateRoute>
       } />
 

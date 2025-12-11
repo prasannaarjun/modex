@@ -13,6 +13,9 @@ const createShowSchema = z.object({
     description: z.string().optional(),
     start_time: z.string().datetime(),
     total_seats: z.number().int().positive(),
+    price1: z.number().int().positive(),
+    price2: z.number().int().positive(),
+    price3: z.number().int().positive(),
 });
 
 // GET /api/shows
@@ -59,19 +62,33 @@ router.post('/', authenticateToken, requireRole(UserRole.ADMIN), async (req: Req
     }
 });
 
+// Validation for booking
+const bookShowSchema = z.object({
+    seatIds: z.array(z.number().int().positive()).min(1)
+});
+
 // POST /api/shows/:id/book (Authenticated User)
 router.post('/:id/book', authenticateToken, async (req: Request, res: Response) => {
     try {
         const showId = parseInt(req.params.id);
         if (isNaN(showId)) return res.status(400).json({ error: 'Invalid ID' });
 
+        // Validate body
+        const { seatIds } = bookShowSchema.parse(req.body);
+
         // Spec: Create booking -> insert PENDING
         if (!req.user) throw new Error("User not found in request");
-        const booking = await bookingService.createBooking(showId, req.user.userId);
+        const booking = await bookingService.createBooking(showId, req.user.userId, seatIds);
         res.json(booking);
     } catch (err: any) {
+        if (err instanceof z.ZodError) {
+            return res.status(422).json({ error: err.errors });
+        }
         if (err.message === 'No seats available') {
             return res.status(409).json({ error: 'No seats available' });
+        }
+        if (err.message.includes('not available') || err.message.includes('not found')) { // Handle specific seat errors
+            return res.status(409).json({ error: err.message });
         }
         if (err.message === 'Show not found') {
             return res.status(404).json({ error: 'Show not found' });

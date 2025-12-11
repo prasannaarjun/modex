@@ -26,6 +26,7 @@ export const Header: React.FC = () => {
                                 {user?.role === 'admin' && (
                                     <li><Link to="/admin" className="text-yellow-400 hover:text-yellow-300">Admin</Link></li>
                                 )}
+                                <li><Link to="/my-bookings" className="hover:text-gray-300">My Bookings</Link></li>
                                 <li>
                                     <span className="text-gray-400 mr-2">Hi, {user?.email}</span>
                                     <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded transition">Logout</button>

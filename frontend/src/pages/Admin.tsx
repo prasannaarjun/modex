@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api/client';
 import { useShows } from '../contexts/ShowsContext';
-import type { OnboardRequest, CreateShowRequest } from '../api/types';
+import type { OnboardRequest } from '../api/types';
 import toast from 'react-hot-toast';
 
 export const Admin = () => {
@@ -36,10 +36,13 @@ export const Admin = () => {
 const CreateShowForm = () => {
     const { refreshShows } = useShows();
     const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState<Partial<CreateShowRequest>>({
+    const [formData, setFormData] = useState({
         title: '',
         start_time: '',
-        total_seats: 100
+        total_seats: 100,
+        price1: 100,
+        price2: 200,
+        price3: 300
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -48,18 +51,18 @@ const CreateShowForm = () => {
 
         setLoading(true);
         try {
-            // Ensure date is ISO string format if needed, input type="datetime-local" returns slightly different format sometimes
-            // "YYYY-MM-DDTHH:mm" is usually compatible if passed as string, but standard is ISO.
-            // But let's send it as is or new Date(..).toISOString();
             const payload = {
                 ...formData,
                 start_time: new Date(formData.start_time).toISOString(),
-                total_seats: Number(formData.total_seats)
+                total_seats: Number(formData.total_seats),
+                price1: Number(formData.price1),
+                price2: Number(formData.price2),
+                price3: Number(formData.price3)
             };
 
             await api.post('/api/shows', payload);
             toast.success('Show created successfully!');
-            setFormData({ title: '', start_time: '', total_seats: 100 });
+            setFormData({ title: '', start_time: '', total_seats: 100, price1: 100, price2: 200, price3: 300 });
             await refreshShows();
         } catch (err: any) {
             toast.error('Failed to create show: ' + (err.response?.data?.message || err.message));
@@ -93,7 +96,7 @@ const CreateShowForm = () => {
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Total Seats</label>
+                    <label className="block text-sm font-medium text-gray-700">Total Seats (will be rounded to square grid)</label>
                     <input
                         type="number"
                         required
@@ -102,6 +105,41 @@ const CreateShowForm = () => {
                         value={formData.total_seats}
                         onChange={e => setFormData({ ...formData, total_seats: Number(e.target.value) })}
                     />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Tier 1 Price (Front)</label>
+                        <input
+                            type="number"
+                            required
+                            min="1"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2"
+                            value={formData.price1}
+                            onChange={e => setFormData({ ...formData, price1: Number(e.target.value) })}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Tier 2 Price (Middle)</label>
+                        <input
+                            type="number"
+                            required
+                            min="1"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2"
+                            value={formData.price2}
+                            onChange={e => setFormData({ ...formData, price2: Number(e.target.value) })}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Tier 3 Price (Back)</label>
+                        <input
+                            type="number"
+                            required
+                            min="1"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2"
+                            value={formData.price3}
+                            onChange={e => setFormData({ ...formData, price3: Number(e.target.value) })}
+                        />
+                    </div>
                 </div>
                 <button
                     type="submit"

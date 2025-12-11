@@ -24,6 +24,9 @@ describe('Concurrency Integration Test', () => {
                 title: 'Concurrency Test Show',
                 start_time: new Date().toISOString(),
                 total_seats: TOTAL_SEATS,
+                price1: 100,
+                price2: 200,
+                price3: 300
             });
             showId = show.id;
         } catch (e) {
@@ -46,7 +49,7 @@ describe('Concurrency Integration Test', () => {
         for (let i = 0; i < CONCURRENT_REQUESTS; i++) {
             const userId = i + 1; // Simulate different users
             promises.push(
-                bookingService.createBooking(showId, userId)
+                bookingService.createBooking(showId, userId, [i + 1])
                     .then(() => ({ status: 'success' }))
                     .catch((err) => ({ status: 'fail', error: err.message }))
             );
