@@ -12,6 +12,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - modex-network
 
   redis:
     image: redis:alpine
@@ -20,7 +22,41 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - modex-network
+
+  backend:
+    build: ./backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://modex_user:modex_password@postgres:5432/modex_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PORT: 3000
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - modex-network
+
+  frontend:
+    build: ./frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "5173:80" # Map 5173 to 80 so localhost:5173 works if user wants
+    depends_on:
+      - backend
+    networks:
+      - modex-network
 
 volumes:
   postgres_data:
   redis_data:
+
+
+networks:
+  modex-network:
+    driver: bridge

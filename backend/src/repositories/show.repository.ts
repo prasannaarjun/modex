@@ -33,6 +33,8 @@ export class ShowRepository {
             title: created.title,
             start_time: created.start_time,
             total_seats: data.total_seats,
+            reserved_seats: 0,
+            confirmed_seats: 0,
             created_at: created.created_at
         };
     }
@@ -47,6 +49,8 @@ export class ShowRepository {
             title: s.title,
             start_time: s.start_time,
             total_seats: s.inventory?.total_seats || 0,
+            reserved_seats: s.inventory?.reserved_seats || 0,
+            confirmed_seats: s.inventory?.confirmed_seats || 0,
             created_at: s.created_at
         }));
     }
@@ -64,6 +68,8 @@ export class ShowRepository {
             title: show.title,
             start_time: show.start_time,
             total_seats: show.inventory?.total_seats || 0,
+            reserved_seats: show.inventory?.reserved_seats || 0,
+            confirmed_seats: show.inventory?.confirmed_seats || 0,
             created_at: show.created_at
         };
     }

@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import showRoutes from './controllers/shows.controller';
 import bookingRoutes from './controllers/bookings.controller';
 import swaggerUi from 'swagger-ui-express';
@@ -13,6 +15,31 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(httpServer, {
+    cors: {
+        origin: '*', // Allow all origins for simplicity (or configure specific frontend URL)
+        methods: ['GET', 'POST']
+    }
+});
+
+// Socket.IO event handlers
+io.on('connection', (socket) => {
+    console.log('A user connected:', socket.id);
+
+    socket.on('join', (room) => {
+        socket.join(room);
+        console.log(`User ${socket.id} joined room ${room}`);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+    });
+});
 
 app.use(helmet());
 app.use(cors());
@@ -44,10 +71,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     res.status(500).json({ error: 'Something went wrong!' });
 });
 
-export { app };
+export { app, io };
 
 if (require.main === module) {
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });
 }

@@ -5,6 +5,8 @@ export interface Show {
     start_time: Date;
     created_at: Date;
     total_seats: number; // Added to match repository return
+    reserved_seats: number;
+    confirmed_seats: number;
 }
 
 export interface ShowInventory {
