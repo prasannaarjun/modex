@@ -1,0 +1,33 @@
+openapi: 3.0.0
+info:
+  title: Modex Ticket Booking API
+  description: API for booking show tickets with concurrency controls.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local server
+paths:
+  /api/shows:
+    get:
+      summary: List all shows
+      responses:
+        '200':
+          description: A list of shows
+  /api/shows/{id}:
+    get:
+      summary: Get show details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Show details
+  /api/shows/book:
+    post:
+      summary: Book a ticket
+      responses:
+        '200':
+          description: Booking pending

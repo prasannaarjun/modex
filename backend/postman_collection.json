@@ -1,0 +1,103 @@
+{
+    "info": {
+        "_postman_id": "modex-ticket-booking",
+        "name": "Modex Ticket Booking",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Get Shows",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:3000/api/shows",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "api",
+                        "shows"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Create Show",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"title\": \"Rock Concert\",\n    \"start_time\": \"2024-01-01T20:00:00Z\",\n    \"total_seats\": 100\n}"
+                },
+                "url": {
+                    "raw": "http://localhost:3000/api/shows",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "api",
+                        "shows"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Book Ticket",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:3000/api/shows/1/book",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "api",
+                        "shows",
+                        "1",
+                        "book"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Confirm Booking",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:3000/api/bookings/1/confirm",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "api",
+                        "bookings",
+                        "1",
+                        "confirm"
+                    ]
+                }
+            },
+            "response": []
+        }
+    ]
+}
