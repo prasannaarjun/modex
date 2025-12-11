@@ -40,8 +40,13 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 });
 
+import { authenticateToken, requireRole } from '../middlewares/auth.middleware';
+import { UserRole } from '../types';
+
+// ... (imports)
+
 // POST /api/shows (Admin)
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticateToken, requireRole(UserRole.ADMIN), async (req: Request, res: Response) => {
     try {
         const validated = createShowSchema.parse(req.body);
         const show = await showService.createShow(validated);
@@ -54,14 +59,15 @@ router.post('/', async (req: Request, res: Response) => {
     }
 });
 
-// POST /api/shows/:id/book
-router.post('/:id/book', async (req: Request, res: Response) => {
+// POST /api/shows/:id/book (Authenticated User)
+router.post('/:id/book', authenticateToken, async (req: Request, res: Response) => {
     try {
         const showId = parseInt(req.params.id);
         if (isNaN(showId)) return res.status(400).json({ error: 'Invalid ID' });
 
         // Spec: Create booking -> insert PENDING
-        const booking = await bookingService.createBooking(showId);
+        if (!req.user) throw new Error("User not found in request");
+        const booking = await bookingService.createBooking(showId, req.user.userId);
         res.json(booking);
     } catch (err: any) {
         if (err.message === 'No seats available') {

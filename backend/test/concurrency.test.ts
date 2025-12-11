@@ -44,8 +44,9 @@ describe('Concurrency Integration Test', () => {
 
         const promises = [];
         for (let i = 0; i < CONCURRENT_REQUESTS; i++) {
+            const userId = i + 1; // Simulate different users
             promises.push(
-                bookingService.createBooking(showId)
+                bookingService.createBooking(showId, userId)
                     .then(() => ({ status: 'success' }))
                     .catch((err) => ({ status: 'fail', error: err.message }))
             );

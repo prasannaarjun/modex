@@ -1,164 +1,131 @@
-import { PoolClient } from 'pg';
-import { getClient } from '../db/pool';
+import { prisma } from '../db/prisma';
 import { Booking, BookingStatus } from '../types';
 
+type TransactionClient = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+
 export class BookingRepository {
-  /**
-   * Creates a booking TRANSACTIONALLY.
-   * Lock strategy: SELECT ... FOR UPDATE on show_inventory
-   */
-  async createBooking(showId: number): Promise<Booking> {
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
+  async createBooking(showId: number, userId: number): Promise<Booking> {
+    return prisma.$transaction(async (tx: TransactionClient) => {
+      // 1. Lock Inventory Row
+      const inventory = await tx.$queryRaw`
+                SELECT * FROM show_inventory 
+                WHERE show_id = ${showId} 
+                FOR UPDATE
+            ` as any[];
 
-      // 1. Lock inventory row
-      const inventoryQuery = `
-        SELECT total_seats, reserved_seats, confirmed_seats
-        FROM show_inventory
-        WHERE show_id = $1
-        FOR UPDATE
-      `;
-      const invRes = await client.query(inventoryQuery, [showId]);
-
-      if (invRes.rows.length === 0) {
+      if (!inventory || inventory.length === 0) {
         throw new Error('Show not found');
       }
 
-      const inv = invRes.rows[0];
-      const available = inv.total_seats - inv.reserved_seats - inv.confirmed_seats;
+      const inv = inventory[0];
+      const available = inv.total_seats - (inv.reserved_seats + inv.confirmed_seats);
 
       if (available <= 0) {
         throw new Error('No seats available');
       }
 
-      // 2. Increment reserved
-      await client.query(`
-        UPDATE show_inventory
-        SET reserved_seats = reserved_seats + 1
-        WHERE show_id = $1
-      `, [showId]);
+      // 2. Initial Booking
+      const booking = await tx.booking.create({
+        data: {
+          show_id: showId,
+          user_id: userId,
+          status: 'PENDING',
+          expires_at: new Date(Date.now() + 2 * 60 * 1000)
+        }
+      });
 
-      // 3. Create Booking
-      const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
-      const bookingRes = await client.query(`
-        INSERT INTO bookings (show_id, status, expires_at)
-        VALUES ($1, $2, $3)
-        RETURNING *
-      `, [showId, BookingStatus.PENDING, expiresAt]);
+      // 3. Update Inventory
+      await tx.showInventory.update({
+        where: { show_id: showId },
+        data: {
+          reserved_seats: { increment: 1 }
+        }
+      });
 
-      await client.query('COMMIT');
-      return bookingRes.rows[0];
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+      return {
+        id: booking.id,
+        show_id: booking.show_id,
+        user_id: booking.user_id || 0,
+        status: booking.status as BookingStatus,
+        expires_at: booking.expires_at as Date,
+        created_at: booking.created_at
+      };
+    });
   }
 
   async confirmBooking(bookingId: number): Promise<Booking> {
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
+    return prisma.$transaction(async (tx: TransactionClient) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: bookingId }
+      });
 
-      // 1. Lock booking
-      const bookingRes = await client.query(`
-        SELECT * FROM bookings WHERE id = $1 FOR UPDATE
-      `, [bookingId]);
+      if (!booking) throw new Error('Booking not found');
+      if (booking.status !== 'PENDING') throw new Error('Booking not pending');
 
-      if (bookingRes.rows.length === 0) {
-        throw new Error('Booking not found');
-      }
-      const booking = bookingRes.rows[0] as Booking;
-
-      if (booking.status !== BookingStatus.PENDING) {
-        throw new Error(`Booking is ${booking.status}`);
-      }
-
-      const now = new Date();
-      if (booking.expires_at && new Date(booking.expires_at) < now) {
-        // Technically this should be handled by expiry worker, but fail here too
-        // We should set it to expired if we catch it here?
-        // Let's just fail confirm.
+      if (booking.expires_at && new Date() > booking.expires_at) {
         throw new Error('Booking expired');
       }
 
-      // 2. Update booking status
-      const updatedBookingRes = await client.query(`
-        UPDATE bookings SET status = $1 WHERE id = $2 RETURNING *
-        `, [BookingStatus.CONFIRMED, bookingId]);
+      const updated = await tx.booking.update({
+        where: { id: bookingId },
+        data: { status: 'CONFIRMED' }
+      });
 
-      // 3. Update inventory (Decrement reserved, increment confirmed)
-      await client.query(`
-        UPDATE show_inventory
-        SET reserved_seats = reserved_seats - 1,
-          confirmed_seats = confirmed_seats + 1
-        WHERE show_id = $1
-          `, [booking.show_id]);
+      await tx.showInventory.update({
+        where: { show_id: booking.show_id },
+        data: {
+          reserved_seats: { decrement: 1 },
+          confirmed_seats: { increment: 1 }
+        }
+      });
 
-      await client.query('COMMIT');
-      return updatedBookingRes.rows[0];
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
-  }
-
-  async findById(id: number): Promise<Booking | null> {
-    const client = await getClient();
-    try {
-      const res = await client.query('SELECT * FROM bookings WHERE id = $1', [id]);
-      return res.rows[0] || null;
-    } finally {
-      client.release();
-    }
-  }
-
-  // For worker
-  async findExpiredPendingBookings(): Promise<Booking[]> {
-    const client = await getClient();
-    try {
-      const res = await client.query(`
-         SELECT * FROM bookings 
-         WHERE status = $1 AND expires_at < NOW()
-         LIMIT 100
-          `, [BookingStatus.PENDING]);
-      return res.rows;
-    } finally {
-      client.release();
-    }
+      return {
+        id: updated.id,
+        show_id: updated.show_id,
+        user_id: updated.user_id || 0,
+        status: updated.status as BookingStatus,
+        expires_at: updated.expires_at as Date,
+        created_at: updated.created_at
+      };
+    });
   }
 
   async expireBooking(bookingId: number): Promise<void> {
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
+    await prisma.$transaction(async (tx: TransactionClient) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: bookingId }
+      });
 
-      const bookingRes = await client.query('SELECT * FROM bookings WHERE id = $1 FOR UPDATE', [bookingId]);
-      const booking = bookingRes.rows[0] as Booking;
+      if (!booking || booking.status !== 'PENDING') return;
 
-      if (!booking || booking.status !== BookingStatus.PENDING) {
-        await client.query('COMMIT'); // Already processed
-        return;
-      }
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: { status: 'EXPIRED' }
+      });
 
-      await client.query('UPDATE bookings SET status = $1 WHERE id = $2', [BookingStatus.EXPIRED, bookingId]);
+      await tx.showInventory.update({
+        where: { show_id: booking.show_id },
+        data: {
+          reserved_seats: { decrement: 1 }
+        }
+      });
+    });
+  }
 
-      await client.query(`
-        UPDATE show_inventory 
-        SET reserved_seats = reserved_seats - 1
-        WHERE show_id = $1
-          `, [booking.show_id]);
+  async findById(bookingId: number): Promise<Booking | null> {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId }
+    });
 
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+    if (!booking) return null;
+
+    return {
+      id: booking.id,
+      show_id: booking.show_id,
+      user_id: booking.user_id || 0,
+      status: booking.status as BookingStatus,
+      expires_at: booking.expires_at as Date,
+      created_at: booking.created_at
+    };
   }
 }

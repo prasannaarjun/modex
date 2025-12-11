@@ -34,10 +34,10 @@ describe('BookingService Unit Tests', () => {
         mockCreateBooking.mockResolvedValue(mockBooking);
 
         // Act
-        const result = await bookingService.createBooking(100);
+        const result = await bookingService.createBooking(100, 1);
 
         // Assert
-        expect(mockCreateBooking).toHaveBeenCalledWith(100);
+        expect(mockCreateBooking).toHaveBeenCalledWith(100, 1);
         expect(QueueService.addExpiryJob).toHaveBeenCalledWith(1, 120000); // 2 mins in ms
         expect(result).toEqual(mockBooking);
     });
@@ -48,7 +48,7 @@ describe('BookingService Unit Tests', () => {
         mockCreateBooking.mockRejectedValue(error);
 
         // Act & Assert
-        await expect(bookingService.createBooking(100)).rejects.toThrow('No seats available');
+        await expect(bookingService.createBooking(100, 1)).rejects.toThrow('No seats available');
         expect(QueueService.addExpiryJob).not.toHaveBeenCalled();
     });
 });

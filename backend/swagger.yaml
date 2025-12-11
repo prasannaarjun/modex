@@ -1,33 +1,219 @@
 openapi: 3.0.0
 info:
   title: Modex Ticket Booking API
-  description: API for booking show tickets with concurrency controls.
+  description: API for booking show tickets with concurrency controls and RBAC.
   version: 1.0.0
 servers:
   - url: http://localhost:3000
     description: Local server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
 paths:
+  /api/auth/register:
+    post:
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                role:
+                  type: string
+                  enum: [user, admin]
+                  default: user
+      responses:
+        '201':
+          description: User created
+        '409':
+          description: User already exists
+
+  /api/auth/login:
+    post:
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT Bearer Token (Use this in Authorization header)
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  user:
+                    type: object
+
+  /api/admin/onboard:
+    post:
+      summary: Onboard Admin (Add Theater details)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - street
+                - area
+                - city
+                - state
+                - country
+              properties:
+                name:
+                  type: string
+                street:
+                  type: string
+                area:
+                  type: string
+                city:
+                  type: string
+                state:
+                  type: string
+                country:
+                  type: string
+      responses:
+        '201':
+          description: Theater details added
+        '409':
+          description: Already onboarded
+
   /api/shows:
     get:
       summary: List all shows
+      security: []
       responses:
         '200':
           description: A list of shows
+    post:
+      summary: Create a new show (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - start_time
+                - total_seats
+              properties:
+                title: 
+                  type: string
+                start_time:
+                  type: string
+                  format: date-time
+                total_seats:
+                  type: integer
+      responses:
+        '201':
+          description: Show created
+        '403':
+          description: Forbidden (Admin only)
+
   /api/shows/{id}:
     get:
       summary: Get show details
+      security: []
       parameters:
         - name: id
-          in: path
+        - in: path
           required: true
           schema:
             type: integer
       responses:
         '200':
           description: Show details
-  /api/shows/book:
+
+  /api/shows/{id}/book:
     post:
-      summary: Book a ticket
+      summary: Book a ticket for a show (User only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+        - in: path
+          required: true
+          schema:
+            type: integer
+            description: Show ID
       responses:
         '200':
-          description: Booking pending
+          description: Booking PENDING
+        '409':
+          description: No seats available
+        '401':
+          description: Unauthorized
+
+  /api/bookings/{id}:
+    get:
+      summary: Get booking details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+        
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Booking details
+
+  /api/bookings/{id}/confirm:
+    post:
+      summary: Confirm a booking
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+        - in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Booking CONFIRMED
+        '409':
+          description: Booking expired or invalid status

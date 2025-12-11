@@ -1,0 +1,87 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  EXPIRED
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  password_hash String
+  role          UserRole  @default(user)
+  created_at    DateTime  @default(now())
+
+  bookings      Booking[]
+  theater       Theater?
+
+  @@map("users")
+}
+
+model Theater {
+  id         Int      @id @default(autoincrement())
+  user_id    Int      @unique
+  name       String
+  street     String   @default("")
+  area       String   @default("")
+  city       String   @default("")
+  state      String   @default("")
+  country    String   @default("")
+  created_at DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("theaters")
+}
+
+model Show {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  start_time  DateTime
+  created_at  DateTime @default(now())
+
+  inventory   ShowInventory?
+  bookings    Booking[]
+
+  @@map("shows")
+}
+
+model ShowInventory {
+  show_id         Int @id
+  total_seats     Int
+  reserved_seats  Int @default(0)
+  confirmed_seats Int @default(0)
+
+  show            Show @relation(fields: [show_id], references: [id], onDelete: Cascade)
+
+  @@map("show_inventory")
+}
+
+model Booking {
+  id         Int           @id @default(autoincrement())
+  show_id    Int
+  user_id    Int?
+  status     BookingStatus
+  expires_at DateTime?
+  created_at DateTime      @default(now())
+
+  show       Show          @relation(fields: [show_id], references: [id])
+  user       User?         @relation(fields: [user_id], references: [id])
+
+  @@index([status, expires_at])
+  @@map("bookings")
+}

@@ -1,56 +1,70 @@
-import { query, getClient } from '../db/pool';
-import { Show, ShowInventory, CreateShowDto } from '../types';
+import { prisma } from '../db/prisma';
+import { CreateShowDto, Show } from '../types';
+
+type TransactionClient = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 export class ShowRepository {
-    async findAll(): Promise<(Show & { available_seats: number })[]> {
-        const sql = `
-      SELECT s.*, 
-             (si.total_seats - si.reserved_seats - si.confirmed_seats) as available_seats
-      FROM shows s
-      JOIN show_inventory si ON s.id = si.show_id
-      ORDER BY s.start_time ASC
-    `;
-        const res = await query(sql, []);
-        return res.rows;
-    }
-
-    async findById(id: number): Promise<(Show & ShowInventory) | null> {
-        const sql = `
-      SELECT s.*, si.total_seats, si.reserved_seats, si.confirmed_seats
-      FROM shows s
-      JOIN show_inventory si ON s.id = si.show_id
-      WHERE s.id = $1
-    `;
-        const res = await query(sql, [id]);
-        return res.rows[0] || null;
-    }
-
     async create(data: CreateShowDto): Promise<Show> {
-        const client = await getClient();
-        try {
-            await client.query('BEGIN');
+        // Transaction to create show + inventory
+        // Note: Raw PG used RETURNING * which returns the default values. Prisma create returns the object.
+        const created = await prisma.$transaction(async (tx: TransactionClient) => {
+            const show = await tx.show.create({
+                data: {
+                    title: data.title,
+                    start_time: new Date(data.start_time),
+                    description: '', // Schema allows null or default
+                }
+            });
 
-            const insertShowSql = `
-        INSERT INTO shows (title, description, start_time)
-        VALUES ($1, $2, $3)
-        RETURNING *
-      `;
-            const showRes = await client.query(insertShowSql, [data.title, data.description, data.start_time]);
-            const show = showRes.rows[0];
+            await tx.showInventory.create({
+                data: {
+                    show_id: show.id,
+                    total_seats: data.total_seats,
+                    reserved_seats: 0,
+                    confirmed_seats: 0
+                }
+            });
 
-            const insertInventorySql = `
-        INSERT INTO show_inventory (show_id, total_seats)
-        VALUES ($1, $2)
-      `;
-            await client.query(insertInventorySql, [show.id, data.total_seats]);
-
-            await client.query('COMMIT');
             return show;
-        } catch (e) {
-            await client.query('ROLLBACK');
-            throw e;
-        } finally {
-            client.release();
-        }
+        });
+
+        return {
+            id: created.id,
+            title: created.title,
+            start_time: created.start_time,
+            total_seats: data.total_seats,
+            created_at: created.created_at
+        };
+    }
+
+    async findAll(): Promise<Show[]> {
+        const shows = await prisma.show.findMany({
+            include: { inventory: true }
+        });
+
+        return shows.map((s: typeof shows[number]) => ({
+            id: s.id,
+            title: s.title,
+            start_time: s.start_time,
+            total_seats: s.inventory?.total_seats || 0,
+            created_at: s.created_at
+        }));
+    }
+
+    async findById(id: number): Promise<Show | null> {
+        const show = await prisma.show.findUnique({
+            where: { id },
+            include: { inventory: true }
+        });
+
+        if (!show) return null;
+
+        return {
+            id: show.id,
+            title: show.title,
+            start_time: show.start_time,
+            total_seats: show.inventory?.total_seats || 0,
+            created_at: show.created_at
+        };
     }
 }

@@ -4,14 +4,23 @@ import { BookingService } from '../services/booking.service';
 const router = Router();
 const bookingService = new BookingService();
 
+import { authenticateToken } from '../middlewares/auth.middleware';
+
+// ... (imports)
+
 // GET /api/bookings/:id
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
     try {
         const id = parseInt(req.params.id);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 
         const booking = await bookingService.getBooking(id);
         if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+        // Ensure user owns booking or is admin
+        if (booking.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
 
         res.json(booking);
     } catch (err) {
@@ -20,7 +29,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/bookings/:id/confirm
-router.post('/:id/confirm', async (req: Request, res: Response) => {
+router.post('/:id/confirm', authenticateToken, async (req: Request, res: Response) => {
     try {
         const id = parseInt(req.params.id);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });

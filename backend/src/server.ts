@@ -19,9 +19,16 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
+import authRoutes from './controllers/auth.controller';
+import adminRoutes from './controllers/admin.controller';
+
 // Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/shows', showRoutes);
 app.use('/api/bookings', bookingRoutes);
+
+import './workers/expiry.worker';
 
 // Swagger
 const swaggerDocument = YAML.load(path.join(process.cwd(), 'swagger.yaml'));
